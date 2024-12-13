@@ -1,5 +1,5 @@
 gaudi_add_module(k4Overlay
-                 SOURCES src/BackgroudReaderSvc.cpp
+                 SOURCES src/BackgroundReaderSvc.cpp
                  LINK GaudiKernel
                       GaudiAlg
                       podio
