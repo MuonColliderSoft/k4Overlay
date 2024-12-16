@@ -56,31 +56,34 @@ StatusCode OverlayTiming::execute()
             always() << "Execution failure for " << coll_name << endmsg;
             return StatusCode::FAILURE;
         }
+    }
 
-        for (int k = 0; k < num_bib; k++)
-        {
-            auto f_plus = m_BIB1Svc->getEventFrame();
-            auto f_minus = m_BIB2Svc->getEventFrame();
-            auto f_ipp = m_IPairSvc->getEventFrame();
+	for (int k = 0; k < num_bib; k++)
+	{
+		auto f_plus = m_BIB1Svc->getEventFrame();
+		auto f_minus = m_BIB2Svc->getEventFrame();
+		auto f_ipp = m_IPairSvc->getEventFrame();
 
-            for (auto [coll_name, coll_type] : type_table)
-            {
-                if (handler_table[coll_name]->mergeEvent(f_plus) == StatusCode::FAILURE
-                        || handler_table[coll_name]->mergeEvent(f_minus) == StatusCode::FAILURE
-                        || handler_table[coll_name]->mergeEvent(f_ipp) == StatusCode::FAILURE)
-                {
-                    always() << "Merging failure for " << coll_name << endmsg;
-                    return StatusCode::FAILURE;
-                }
-            }
-        }
+		for (auto [coll_name, coll_type] : type_table)
+		{
+			if (handler_table[coll_name]->mergeEvent(f_plus) == StatusCode::FAILURE
+					|| handler_table[coll_name]->mergeEvent(f_minus) == StatusCode::FAILURE
+					|| handler_table[coll_name]->mergeEvent(f_ipp) == StatusCode::FAILURE)
+			{
+				always() << "Merging failure for " << coll_name << endmsg;
+				return StatusCode::FAILURE;
+			}
+		}
+	}
 
+	for (auto [coll_name, coll_type] : type_table)
+	{
         if (handler_table[coll_name]->flush() == StatusCode::FAILURE)
         {
             always() << "Flush failure for " << coll_name << endmsg;
             return StatusCode::FAILURE;
         }
-   }
+	}
 
     return StatusCode::SUCCESS;
 }
