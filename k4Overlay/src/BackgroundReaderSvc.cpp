@@ -38,7 +38,7 @@ OptFrame BackgroundReaderSvc::getEventFrame()
     auto r_frame = m_reader.readEntry("events", curr_evn);
     if (r_frame == nullptr) return std::nullopt;
 
-    curr_evn = curr_evn == total_evns ? curr_evn + 1 : 0;
+    curr_evn = curr_evn < total_evns ? curr_evn + 1 : 0;
 
     return podio::Frame(std::move(r_frame));
 }
