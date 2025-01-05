@@ -84,7 +84,7 @@ public:
     StatusCode flush() override
     {
         EDMEntity output_coll;
-        for (auto item : coll_buff) output_coll.push_back(item);
+        for (auto item : coll_buff) output_coll.push_back(item.clone());
 
         EDMEntityWrapper* out_wrapper = new EDMEntityWrapper(std::move(output_coll));
         out_handle->put(std::unique_ptr<EDMEntityWrapper>(out_wrapper));
@@ -98,7 +98,7 @@ private:
     EDMEntityHandle* in_handle;
     EDMEntityHandle* out_handle;
 
-    vector<typename EDMEntity::value_type> coll_buff;
+    EDMEntity coll_buff;
 };
 
 class OverlayTiming : public GaudiAlgorithm
