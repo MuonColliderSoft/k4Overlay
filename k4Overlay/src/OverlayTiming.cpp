@@ -49,41 +49,42 @@ StatusCode OverlayTiming::finalize()
 
 StatusCode OverlayTiming::execute()
 {
-    for (auto [coll_name, coll_type] : type_table)
+	BGFrameList evnFrames {};
+	for (int k = 0; k < num_bib; k++)
+	{
+		auto bib1 = m_BIB1Svc->getEventFrame();
+		if (!bib1)
+		{
+			always() << "Wrong frame for BIB1" << endmsg;
+			return StatusCode::FAILURE;
+		}
+		evnFrames.emplace_back(std::move(bib1.value()));
+
+		auto bib2 = m_BIB2Svc->getEventFrame();
+		if (!bib2)
+		{
+			always() << "Wrong frame for BIB2" << endmsg;
+			return StatusCode::FAILURE;
+		}
+		evnFrames.emplace_back(std::move(bib2.value()));
+
+		auto ipp = m_IPairSvc->getEventFrame();
+		if (!ipp)
+		{
+			always() << "Wrong frame for IPP" << endmsg;
+			return StatusCode::FAILURE;
+		}
+		evnFrames.emplace_back(std::move(ipp.value()));
+	}
+
+	for (auto [coll_name, coll_type] : type_table)
     {
-        if (handler_table[coll_name]->cloneSignal() == StatusCode::FAILURE)
+        if (handler_table[coll_name]->mergeEvents(evnFrames) == StatusCode::FAILURE)
         {
             always() << "Execution failure for " << coll_name << endmsg;
             return StatusCode::FAILURE;
         }
     }
-
-	for (int k = 0; k < num_bib; k++)
-	{
-		auto f_plus = m_BIB1Svc->getEventFrame();
-		auto f_minus = m_BIB2Svc->getEventFrame();
-		auto f_ipp = m_IPairSvc->getEventFrame();
-
-		for (auto [coll_name, coll_type] : type_table)
-		{
-			if (handler_table[coll_name]->mergeEvent(f_plus) == StatusCode::FAILURE
-					|| handler_table[coll_name]->mergeEvent(f_minus) == StatusCode::FAILURE
-					|| handler_table[coll_name]->mergeEvent(f_ipp) == StatusCode::FAILURE)
-			{
-				always() << "Merging failure for " << coll_name << endmsg;
-				return StatusCode::FAILURE;
-			}
-		}
-	}
-
-	for (auto [coll_name, coll_type] : type_table)
-	{
-        if (handler_table[coll_name]->flush() == StatusCode::FAILURE)
-        {
-            always() << "Flush failure for " << coll_name << endmsg;
-            return StatusCode::FAILURE;
-        }
-	}
 
     return StatusCode::SUCCESS;
 }

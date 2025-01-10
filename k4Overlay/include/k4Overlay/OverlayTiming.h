@@ -22,12 +22,12 @@ DECLARE_COMPONENT_WITH_ID(BackgroundReaderSvc, "IPairSourceSvc")
 using std::string;
 using std::vector;
 
+using BGFrameList = vector<podio::Frame>;
+
 class EDMAbstractHandler
 {
 public:
-    virtual StatusCode cloneSignal() = 0;
-    virtual StatusCode mergeEvent(const OptFrame& evnFrame) = 0;
-    virtual StatusCode flush() = 0;
+    virtual StatusCode mergeEvents(const BGFrameList& evnFrames) = 0;
 };
 
 template <class EDMEntity>
@@ -55,36 +55,26 @@ public:
         delete out_handle;
     }
 
-    StatusCode cloneSignal() override
+    StatusCode mergeEvents(const BGFrameList& evnFrames) override
     {
         if (!in_handle->isValid()) return StatusCode::FAILURE;
         EDMEntityWrapper* in_wrapper = in_handle->get();
         const EDMEntity* input_coll = in_wrapper->getData();
 
-        coll_buff.clear();
+        EDMEntity output_coll;
         for (auto item : *input_coll)
         {
-            coll_buff.push_back(item.clone());
+        	output_coll.push_back(item.clone());
         }
-        return StatusCode::SUCCESS;
-    }
 
-    StatusCode mergeEvent(const OptFrame& evnFrame) override
-    {
-        if (!evnFrame) return StatusCode::FAILURE;
-
-        const EDMEntity* b_coll = static_cast<const EDMEntity*>(evnFrame.value().get(c_name));
-        for (auto item : *b_coll)
+        for (int idx = 0; idx < evnFrames.size(); idx++)
         {
-            coll_buff.push_back(item.clone());
+			const EDMEntity* b_coll = static_cast<const EDMEntity*>(evnFrames[idx].get(c_name));
+			for (auto item : *b_coll)
+			{
+				output_coll.push_back(item.clone());
+			}
         }
-        return StatusCode::SUCCESS;
-    }
-
-    StatusCode flush() override
-    {
-        EDMEntity output_coll;
-        for (auto item : coll_buff) output_coll.push_back(item.clone());
 
         EDMEntityWrapper* out_wrapper = new EDMEntityWrapper(std::move(output_coll));
         out_handle->put(std::unique_ptr<EDMEntityWrapper>(out_wrapper));
@@ -97,8 +87,6 @@ private:
     string c_name;
     EDMEntityHandle* in_handle;
     EDMEntityHandle* out_handle;
-
-    EDMEntity coll_buff;
 };
 
 class OverlayTiming : public GaudiAlgorithm
