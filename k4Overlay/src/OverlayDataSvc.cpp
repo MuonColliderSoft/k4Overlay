@@ -11,28 +11,14 @@
 
 DECLARE_COMPONENT(OverlayDataSvc)
 
-OverlayDataSvc::OverlayDataSvc(const std::string &name, ISvcLocator *svc) :
-    DataSvc(name, svc)
-{
-    declareProperty("inputs", m_filenames = {}, "Names of the files to read");
-    declareProperty("input", m_filename = "", "Name of the file to read");
-    declareProperty("FirstEventEntry", m_1stEvtEntry = 0, "First event to read");
-}
-
 StatusCode OverlayDataSvc::initialize()
 {
-    // Nothing to do: just call base class initialisation
     StatusCode status = DataSvc::initialize();
     ISvcLocator *svc_loc = serviceLocator();
 
     // Attach data loader facility
     m_cnvSvc = svc_loc->service("EventPersistencySvc");
     status = setDataLoader(m_cnvSvc);
-
-    if (m_filename != "")
-    {
-        m_filenames.push_back(m_filename);
-    }
 
     if (m_filenames.size() > 0)
     {
@@ -112,29 +98,15 @@ StatusCode OverlayDataSvc::clearStore()
 
 StatusCode OverlayDataSvc::i_setRoot(std::string root_path,  IOpaqueAddress *pRootAddr)
 {
-    // create a new frame
-    if (m_reading_from_file)
-    {
-        m_eventframe = podio::Frame( m_reader.readEntry("events", m_eventNum + m_1stEvtEntry));
-    }
-    else
-    {
-        m_eventframe = podio::Frame();
-    }
+    auto res = readFrames();
+    if (res != StatusCode::SUCCESS) return res;
     return DataSvc::i_setRoot(root_path, pRootAddr);
 }
 
 StatusCode OverlayDataSvc::i_setRoot(std::string root_path, DataObject *pRootObj)
 {
-    // create a new frame
-    if (m_reading_from_file)
-    {
-        m_eventframe = podio::Frame(m_reader.readEntry("events", m_eventNum + m_1stEvtEntry));
-    }
-    else
-    {
-        m_eventframe = podio::Frame();
-    }
+    auto res = readFrames();
+    if (res != StatusCode::SUCCESS) return res;
     return DataSvc::i_setRoot(root_path, pRootObj);
 }
 
@@ -185,4 +157,17 @@ StatusCode OverlayDataSvc::registerObject(std::string_view parentPath,
         }
     }
     return DataSvc::registerObject(parentPath, fullPath, pObject);
+}
+
+StatusCode OverlayDataSvc::readFrames()
+{
+    if (m_reading_from_file)
+    {
+        m_eventframe = podio::Frame( m_reader.readEntry("events", m_eventNum + m_1stEvtEntry));
+    }
+    else
+    {
+        m_eventframe = podio::Frame();
+    }
+    return StatusCode::SUCCESS;
 }
