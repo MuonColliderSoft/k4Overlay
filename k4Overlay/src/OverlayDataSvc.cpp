@@ -9,6 +9,8 @@
 
 #include "podio/CollectionBase.h"
 
+#include <random>
+
 DECLARE_COMPONENT(OverlayDataSvc)
 
 StatusCode OverlayDataSvc::initialize()
@@ -20,15 +22,15 @@ StatusCode OverlayDataSvc::initialize()
     m_cnvSvc = svc_loc->service("EventPersistencySvc");
     status = setDataLoader(m_cnvSvc);
 
-    if (m_filenames.size() > 0)
+    /* ************************************************************************
+     * Signal initialization
+     * ***********************************************************************/
+    if (m_filenames.size() > 0 and m_filenames[0] != "")
     {
-        if (m_filenames[0] != "")
-        {
-            m_reading_from_file = true;
-            m_reader.openFiles(m_filenames);
-            m_numAvailableEvents = m_reader.getEntries("events");
-            m_numAvailableEvents -= m_1stEvtEntry;
-        }
+        m_reading_from_file = true;
+        m_reader.openFiles(m_filenames);
+        m_numAvailableEvents = m_reader.getEntries("events");
+        m_numAvailableEvents -= m_1stEvtEntry;
     }
 
     if (m_reading_from_file)
@@ -39,8 +41,7 @@ StatusCode OverlayDataSvc::initialize()
         }
         else
         {
-            warning() << "Reading file without a 'metadata' category."
-                    << endmsg;
+            warning() << "Reading file without a 'metadata' category." << endmsg;
             m_metadataframe = podio::Frame();
         }
     }
@@ -54,11 +55,11 @@ StatusCode OverlayDataSvc::initialize()
     if (sc == StatusCode::FAILURE)
     {
         error() << "Could not get ApplicationMgr properties" << std::endl;
+        return sc;
     }
     Gaudi::Property<int> evtMax;
     evtMax.assign(property->getProperty("EvtMax"));
-    m_requestedEventMax = evtMax;
-    m_requestedEventMax -= m_1stEvtEntry;
+    m_requestedEventMax = evtMax - m_1stEvtEntry;
 
     // if run with a fixed number of requested events and we have enough
     // in the file we don't need to check if we run out of events
@@ -66,6 +67,31 @@ StatusCode OverlayDataSvc::initialize()
     {
         m_bounds_check_needed = false;
     }
+
+    /* ************************************************************************
+     * Background initialization
+     * ***********************************************************************/
+    std::random_device r_device;
+    std::mt19937 r_generator(r_device());
+    std::vector<std::string> s_filenames;
+
+    for (auto item : b_filenames) s_filenames.push_back(item);
+    if (s_filenames.size() > 1) std::shuffle(s_filenames.begin(), s_filenames.end(), r_generator);
+    if (s_filenames.empty())
+    {
+        error() << "No file names specified" << endmsg;
+        return StatusCode::FAILURE;
+    }
+
+    b_reader.openFiles(s_filenames);
+    if ((total_bevns = b_reader.getEntries("events")) == 0)
+    {
+        error() << "No events found" << endmsg;
+        return StatusCode::FAILURE;
+    }
+
+    std::uniform_int_distribution<unsigned> uni_distro { 0, total_bevns - 1 };
+    curr_bevn = uni_distro(r_generator);
 
     return status;
 }
@@ -127,8 +153,7 @@ void OverlayDataSvc::endOfRead()
     }
 }
 
-const std::string_view OverlayDataSvc::getCollectionType(
-        const std::string &collName)
+const std::string_view OverlayDataSvc::getCollectionType(const std::string &collName)
 {
     const auto coll = m_eventframe.get(collName);
     if (coll == nullptr)
@@ -151,8 +176,7 @@ StatusCode OverlayDataSvc::registerObject(std::string_view parentPath,
             size_t pos = fullPath.find_last_of("/");
             std::string shortPath(fullPath.substr(pos + 1, fullPath.length()));
             // Attention: this passes the ownership of the data to the frame
-            m_eventframe.put(std::unique_ptr < podio::CollectionBase > (coll),
-                    shortPath);
+            m_eventframe.put(std::unique_ptr < podio::CollectionBase > (coll), shortPath);
             m_podio_datawrappers.push_back(wrapper);
         }
     }
@@ -161,13 +185,26 @@ StatusCode OverlayDataSvc::registerObject(std::string_view parentPath,
 
 StatusCode OverlayDataSvc::readFrames()
 {
-    if (m_reading_from_file)
-    {
-        m_eventframe = podio::Frame( m_reader.readEntry("events", m_eventNum + m_1stEvtEntry));
-    }
-    else
+    if (!m_reading_from_file)
     {
         m_eventframe = podio::Frame();
+        return StatusCode::SUCCESS;
     }
+
+    m_eventframe = podio::Frame(m_reader.readEntry("events", m_eventNum + m_1stEvtEntry));
+
+    for (int k = 0; k < num_bib; k++)
+    {
+        auto b_frame = b_reader.readEntry("events", curr_bevn);
+        if (b_frame == nullptr)
+        {
+            error() << "Error reading background event" << endmsg;
+            return StatusCode::FAILURE;
+        }
+
+        curr_bevn++;
+        if (curr_bevn == total_bevns) curr_bevn = 0;
+    }
+
     return StatusCode::SUCCESS;
 }

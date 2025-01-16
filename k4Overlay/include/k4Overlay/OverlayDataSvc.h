@@ -59,13 +59,27 @@ private:
     int m_requestedEventMax { -1 };
     bool m_reading_from_file { false };
 
+    podio::ROOTFrameReader b_reader;
+    unsigned curr_bevn;
+    unsigned total_bevns;
+
     SmartIF<IConversionSvc> m_cnvSvc;
 
     // Registry of data wrappers; needed for memory management
     std::vector<DataWrapperBase*> m_podio_datawrappers;
 
-    Gaudi::Property<std::vector<std::string>> m_filenames { this, "inputs", {}, "Names of the files to read" };
-    Gaudi::Property<unsigned> m_1stEvtEntry { this, "FirstEventEntry", 0, "First event to read" };
+    Gaudi::Property<std::vector<std::string>> m_filenames {
+        this, "signal_files", {}, "Names of the signal files to read"
+    };
+    Gaudi::Property<std::vector<std::string>> b_filenames {
+        this, "bg_files", {}, "Names of the background files to read"
+    };
+    Gaudi::Property<unsigned> m_1stEvtEntry {
+        this, "FirstEventEntry", 0, "First event to read"
+    };
+    Gaudi::Property<int> num_bib {
+        this, "num_of_bib", 100, "Number of bib events to merge"
+    };
     bool m_bounds_check_needed { true };
 };
 
