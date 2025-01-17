@@ -11,6 +11,11 @@
 
 #include <random>
 
+#define MCPARTCOLLPRIO 1
+#define CONTRIBCOLLPRIO 2
+#define CALOHITCOLLPRIO 3
+#define TRACKHITCOLLPRIO 4
+
 StatusCode OverlayDataSvc::initialize()
 {
     if (auto st = DataSvc::initialize(); st != StatusCode::SUCCESS)
@@ -71,6 +76,34 @@ StatusCode OverlayDataSvc::initialize()
     if (m_requestedEventMax > 0 && m_requestedEventMax <= m_numAvailableEvents)
     {
         m_bounds_check_needed = false;
+    }
+
+    /* ************************************************************************
+     * Collection priority table
+     * ***********************************************************************/
+    for (string item : coll_defs)
+    {
+        auto idx = item.find("=");
+        if (idx == item.npos) continue;
+        string coll_name = item.substr(0, idx);
+        string coll_type = item.substr(idx + 1, item.size());
+
+        if (coll_type == "edm4hep::SimTrackerHit")
+        {
+            collname_set.emplace(TRACKHITCOLLPRIO, coll_name);
+        }
+        else if (coll_type == "edm4hep::SimCalorimeterHit")
+        {
+            collname_set.emplace(CALOHITCOLLPRIO, coll_name);
+        }
+        else if (coll_type == "edm4hep::MCParticle")
+        {
+            collname_set.emplace(MCPARTCOLLPRIO, coll_name);
+        }
+        else if (coll_type == "edm4hep::CaloHitContribution")
+        {
+            collname_set.emplace(CONTRIBCOLLPRIO, coll_name);
+        }
     }
 
     return StatusCode::SUCCESS;
@@ -217,6 +250,9 @@ StatusCode OverlayDataSvc::readFrames()
 
 StatusCode OverlayDataSvc::mergeFrame(const podio::Frame& frame)
 {
-    // TODO m_eventframe += frame
+    for (auto [priority, collname] : collname_set)
+    {
+        // TODO m_eventframe.coll += frame.coll
+    }
     return StatusCode::SUCCESS;
 }

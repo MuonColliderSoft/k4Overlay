@@ -10,6 +10,13 @@
 #include "k4FWCore/DataWrapper.h"
 #include "BackgroundReaderSvc.h"
 
+#include <set>
+#include <utility>
+
+// key is <collection type priority, collection name>
+using CollNameKey = std::pair<int, std::string>;
+using CollNameSet = std::set<CollNameKey>;
+
 class DataWrapperBase;
 
 template<typename T> class MetaDataHandle;
@@ -75,11 +82,17 @@ private:
     Gaudi::Property<int> num_bib {
         this, "num_of_bib", 100, "Number of bib events to merge"
     };
+    Gaudi::Property<vector<string>> coll_defs {
+        this, "collections", {}, "Name and type of the collections to scan"
+    };
+
     bool m_bounds_check_needed { true };
 
     ServiceHandle<IBackgroundReaderSvc> m_BIB1Svc { this, "BIBMuPlusSourceSvc", "BIBMuPlusSourceSvc" };
     ServiceHandle<IBackgroundReaderSvc> m_BIB2Svc { this, "BIBMuMinusSourceSvc", "BIBMuMinusSourceSvc" };
     ServiceHandle<IBackgroundReaderSvc> m_IPairSvc { this, "IPairSourceSvc", "IPairSourceSvc" };
+
+    CollNameSet collname_set;
 };
 
 template<typename T>
