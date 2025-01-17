@@ -50,6 +50,7 @@ public:
 
 private:
     StatusCode readFrames();
+    StatusCode mergeFrame(const podio::Frame& frame);
 
     podio::ROOTFrameReader m_reader;
     podio::Frame m_eventframe;

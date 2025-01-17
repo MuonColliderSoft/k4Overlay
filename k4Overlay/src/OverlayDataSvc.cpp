@@ -15,12 +15,19 @@ DECLARE_COMPONENT(OverlayDataSvc)
 
 StatusCode OverlayDataSvc::initialize()
 {
-    StatusCode status = DataSvc::initialize();
-    ISvcLocator *svc_loc = serviceLocator();
+    if (auto st = DataSvc::initialize(); st != StatusCode::SUCCESS)
+    {
+        error() << "Service initialization failure" << endmsg;
+        return st;
+    }
 
-    // Attach data loader facility
+    ISvcLocator *svc_loc = serviceLocator();
     m_cnvSvc = svc_loc->service("EventPersistencySvc");
-    status = setDataLoader(m_cnvSvc);
+    if (auto st = setDataLoader(m_cnvSvc); st != StatusCode::SUCCESS)
+    {
+        error() << "Error attaching data loader facility" << endmsg;
+        return st;
+    }
 
     /* ************************************************************************
      * Signal initialization
@@ -93,7 +100,7 @@ StatusCode OverlayDataSvc::initialize()
     std::uniform_int_distribution<unsigned> uni_distro { 0, total_bevns - 1 };
     curr_bevn = uni_distro(r_generator);
 
-    return status;
+    return StatusCode::SUCCESS;
 }
 
 StatusCode OverlayDataSvc::reinitialize()
@@ -185,26 +192,25 @@ StatusCode OverlayDataSvc::registerObject(std::string_view parentPath,
 
 StatusCode OverlayDataSvc::readFrames()
 {
-    if (!m_reading_from_file)
-    {
-        m_eventframe = podio::Frame();
-        return StatusCode::SUCCESS;
-    }
+    m_eventframe = podio::Frame();
+    if (!m_reading_from_file) return StatusCode::SUCCESS;
 
-    m_eventframe = podio::Frame(m_reader.readEntry("events", m_eventNum + m_1stEvtEntry));
+
+    auto st = mergeFrame(podio::Frame(m_reader.readEntry("events", m_eventNum + m_1stEvtEntry)));
 
     for (int k = 0; k < num_bib; k++)
     {
-        auto b_frame = b_reader.readEntry("events", curr_bevn);
-        if (b_frame == nullptr)
-        {
-            error() << "Error reading background event" << endmsg;
-            return StatusCode::FAILURE;
-        }
+        st = mergeFrame(podio::Frame(b_reader.readEntry("events", curr_bevn)));
 
         curr_bevn++;
         if (curr_bevn == total_bevns) curr_bevn = 0;
     }
 
+    return StatusCode::SUCCESS;
+}
+
+StatusCode OverlayDataSvc::mergeFrame(const podio::Frame& frame)
+{
+    // TODO m_eventframe += frame
     return StatusCode::SUCCESS;
 }
