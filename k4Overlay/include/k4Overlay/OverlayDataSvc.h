@@ -8,6 +8,7 @@
 #include "podio/Frame.h"
 #include "podio/ROOTFrameReader.h"
 #include "k4FWCore/DataWrapper.h"
+#include "BackgroundReaderSvc.h"
 
 class DataWrapperBase;
 
@@ -60,10 +61,6 @@ private:
     int m_requestedEventMax { -1 };
     bool m_reading_from_file { false };
 
-    podio::ROOTFrameReader b_reader;
-    unsigned curr_bevn;
-    unsigned total_bevns;
-
     SmartIF<IConversionSvc> m_cnvSvc;
 
     // Registry of data wrappers; needed for memory management
@@ -72,9 +69,6 @@ private:
     Gaudi::Property<std::vector<std::string>> m_filenames {
         this, "signal_files", {}, "Names of the signal files to read"
     };
-    Gaudi::Property<std::vector<std::string>> b_filenames {
-        this, "bg_files", {}, "Names of the background files to read"
-    };
     Gaudi::Property<unsigned> m_1stEvtEntry {
         this, "FirstEventEntry", 0, "First event to read"
     };
@@ -82,6 +76,10 @@ private:
         this, "num_of_bib", 100, "Number of bib events to merge"
     };
     bool m_bounds_check_needed { true };
+
+    ServiceHandle<IBackgroundReaderSvc> m_BIB1Svc { this, "BIBMuPlusSourceSvc", "BIBMuPlusSourceSvc" };
+    ServiceHandle<IBackgroundReaderSvc> m_BIB2Svc { this, "BIBMuMinusSourceSvc", "BIBMuMinusSourceSvc" };
+    ServiceHandle<IBackgroundReaderSvc> m_IPairSvc { this, "IPairSourceSvc", "IPairSourceSvc" };
 };
 
 template<typename T>
@@ -105,5 +103,10 @@ StatusCode OverlayDataSvc::readCollection(const std::string &collName)
     m_podio_datawrappers.push_back(wrapper);
     return DataSvc::registerObject("/Event", "/" + collName, wrapper);
 }
+
+DECLARE_COMPONENT_WITH_ID(BackgroundReaderSvc, "BIBMuPlusSourceSvc")
+DECLARE_COMPONENT_WITH_ID(BackgroundReaderSvc, "BIBMuMinusSourceSvc")
+DECLARE_COMPONENT_WITH_ID(BackgroundReaderSvc, "IPairSourceSvc")
+DECLARE_COMPONENT_WITH_ID(OverlayDataSvc, "OverlayDataSvc")
 
 #endif  // OVERLAYDATASVC_H

@@ -11,8 +11,6 @@
 
 #include <random>
 
-DECLARE_COMPONENT(OverlayDataSvc)
-
 StatusCode OverlayDataSvc::initialize()
 {
     if (auto st = DataSvc::initialize(); st != StatusCode::SUCCESS)
@@ -74,31 +72,6 @@ StatusCode OverlayDataSvc::initialize()
     {
         m_bounds_check_needed = false;
     }
-
-    /* ************************************************************************
-     * Background initialization
-     * ***********************************************************************/
-    std::random_device r_device;
-    std::mt19937 r_generator(r_device());
-    std::vector<std::string> s_filenames;
-
-    for (auto item : b_filenames) s_filenames.push_back(item);
-    if (s_filenames.size() > 1) std::shuffle(s_filenames.begin(), s_filenames.end(), r_generator);
-    if (s_filenames.empty())
-    {
-        error() << "No file names specified" << endmsg;
-        return StatusCode::FAILURE;
-    }
-
-    b_reader.openFiles(s_filenames);
-    if ((total_bevns = b_reader.getEntries("events")) == 0)
-    {
-        error() << "No events found" << endmsg;
-        return StatusCode::FAILURE;
-    }
-
-    std::uniform_int_distribution<unsigned> uni_distro { 0, total_bevns - 1 };
-    curr_bevn = uni_distro(r_generator);
 
     return StatusCode::SUCCESS;
 }
@@ -196,14 +169,47 @@ StatusCode OverlayDataSvc::readFrames()
     if (!m_reading_from_file) return StatusCode::SUCCESS;
 
 
-    auto st = mergeFrame(podio::Frame(m_reader.readEntry("events", m_eventNum + m_1stEvtEntry)));
+    if (auto st = mergeFrame(podio::Frame(m_reader.readEntry("events", m_eventNum + m_1stEvtEntry)));
+        st != StatusCode::SUCCESS)
+    {
+        error() << "Error merging signal frame" << endmsg;
+        return StatusCode::FAILURE;
+    }
 
     for (int k = 0; k < num_bib; k++)
     {
-        st = mergeFrame(podio::Frame(b_reader.readEntry("events", curr_bevn)));
+        if (auto bib1 = m_BIB1Svc->getEventFrame(); !bib1)
+        {
+            error() << "Wrong frame for BIB1" << endmsg;
+            return StatusCode::FAILURE;
+        }
+        else if (auto st = mergeFrame(bib1.value()); st != StatusCode::SUCCESS)
+        {
+            error() << "Error merging BIB1 frame" << endmsg;
+            return StatusCode::FAILURE;
+        }
 
-        curr_bevn++;
-        if (curr_bevn == total_bevns) curr_bevn = 0;
+        if (auto bib2 = m_BIB2Svc->getEventFrame(); !bib2)
+        {
+            error() << "Wrong frame for BIB2" << endmsg;
+            return StatusCode::FAILURE;
+        }
+        else if (auto st = mergeFrame(bib2.value()); st != StatusCode::SUCCESS)
+        {
+            error() << "Error merging BIB2 frame" << endmsg;
+            return StatusCode::FAILURE;
+        }
+
+        if (auto ipp = m_IPairSvc->getEventFrame(); !ipp)
+        {
+            error() << "Wrong frame for IPP" << endmsg;
+            return StatusCode::FAILURE;
+        }
+        else if (auto st = mergeFrame(ipp.value()); st != StatusCode::SUCCESS)
+        {
+            error() << "Error merging IPP frame" << endmsg;
+            return StatusCode::FAILURE;
+        }
     }
 
     return StatusCode::SUCCESS;
