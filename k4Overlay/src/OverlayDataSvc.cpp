@@ -7,14 +7,15 @@
 #include "GaudiKernel/ISvcLocator.h"
 #include "k4FWCore/DataWrapper.h"
 
-#include "podio/CollectionBase.h"
-
-#include <random>
-
 #define MCPARTCOLLPRIO 1
 #define CONTRIBCOLLPRIO 2
 #define CALOHITCOLLPRIO 3
 #define TRACKHITCOLLPRIO 4
+
+using MCPartColl = edm4hep::MCParticleCollection;
+using CaloContribColl = edm4hep::CaloHitContributionCollection;
+using CaloHitColl = edm4hep::SimCalorimeterHitCollection;
+using TrackHitColl = edm4hep::SimTrackerHitCollection;
 
 StatusCode OverlayDataSvc::initialize()
 {
@@ -198,9 +199,19 @@ StatusCode OverlayDataSvc::registerObject(std::string_view parentPath,
 
 StatusCode OverlayDataSvc::readFrames()
 {
-    m_eventframe = podio::Frame();
-    if (!m_reading_from_file) return StatusCode::SUCCESS;
+    for (auto [priority, collname] : collname_set)
+    {
+        if (priority == MCPARTCOLLPRIO)
+            mc_coll_map.emplace(collname, MCPartColl());
+        else if (priority == CONTRIBCOLLPRIO)
+            cc_coll_map.emplace(collname, CaloContribColl());
+        else if (priority == CALOHITCOLLPRIO)
+            sc_coll_map.emplace(collname, CaloHitColl());
+        else if (priority == TRACKHITCOLLPRIO)
+            st_coll_map.emplace(collname, TrackHitColl());
+    }
 
+    if (!m_reading_from_file) return StatusCode::SUCCESS;
 
     if (auto st = mergeFrame(podio::Frame(m_reader.readEntry("events", m_eventNum + m_1stEvtEntry)));
         st != StatusCode::SUCCESS)
@@ -245,6 +256,23 @@ StatusCode OverlayDataSvc::readFrames()
         }
     }
 
+    m_eventframe = podio::Frame();
+    for (auto [priority, collname] : collname_set)
+    {
+        if (priority == MCPARTCOLLPRIO)
+            m_eventframe.put<MCPartColl>(std::move(mc_coll_map[collname]), collname);
+        else if (priority == CONTRIBCOLLPRIO)
+            m_eventframe.put<CaloContribColl>(std::move(cc_coll_map[collname]), collname);
+        else if (priority == CALOHITCOLLPRIO)
+            m_eventframe.put<CaloHitColl>(std::move(sc_coll_map[collname]), collname);
+        else if (priority == TRACKHITCOLLPRIO)
+            m_eventframe.put<TrackHitColl>(std::move(st_coll_map[collname]), collname);
+    }
+    mc_coll_map.clear();
+    cc_coll_map.clear();
+    sc_coll_map.clear();
+    st_coll_map.clear();
+
     return StatusCode::SUCCESS;
 }
 
@@ -252,7 +280,57 @@ StatusCode OverlayDataSvc::mergeFrame(const podio::Frame& frame)
 {
     for (auto [priority, collname] : collname_set)
     {
-        // TODO m_eventframe.coll += frame.coll
+        if (priority == MCPARTCOLLPRIO)
+        {
+            const MCPartColl* b_coll = static_cast<const MCPartColl*>(frame.get(collname));
+            for (auto mc_item : *b_coll)
+            {
+                edm4hep::MutableMCParticle mc_part {
+                    mc_item.getPDG(), mc_item.getGeneratorStatus(),
+                    mc_item.getSimulatorStatus(), mc_item.getCharge(), mc_item.getTime(),
+                    mc_item.getMass(), mc_item.getVertex(), mc_item.getEndpoint(),
+                    mc_item.getMomentum(), mc_item.getMomentumAtEndpoint(),
+                    mc_item.getSpin(), mc_item.getColorFlow()
+                };
+                mc_coll_map[collname].push_back(mc_part);
+            }
+        }
+        else if (priority == CONTRIBCOLLPRIO)
+        {
+            const CaloContribColl* b_coll = static_cast<const CaloContribColl*>(frame.get(collname));
+            for (auto cc_item : *b_coll)
+            {
+                edm4hep::MutableCaloHitContribution contrib {
+                    cc_item.getPDG(), cc_item.getEnergy(),
+                    cc_item.getTime(), cc_item.getStepPosition()
+                };
+                cc_coll_map[collname].push_back(contrib);
+            }
+        }
+        else if (priority == CALOHITCOLLPRIO)
+        {
+            const CaloHitColl* b_coll = static_cast<const CaloHitColl*>(frame.get(collname));
+            for (auto sc_item : *b_coll)
+            {
+                edm4hep::MutableSimCalorimeterHit sc_hit {
+                    sc_item.getCellID(), sc_item.getEnergy(), sc_item.getPosition()
+                };
+                sc_coll_map[collname].push_back(sc_hit);
+            }
+        }
+        else if (priority == TRACKHITCOLLPRIO)
+        {
+            const TrackHitColl* b_coll = static_cast<const TrackHitColl*>(frame.get(collname));
+            for (auto st_item : *b_coll)
+            {
+                edm4hep::MutableSimTrackerHit st_hit {
+                    st_item.getCellID(), st_item.getEDep(), st_item.getTime(),
+                    st_item.getPathLength(), st_item.getQuality(),
+                    st_item.getPosition(), st_item.getMomentum()
+                };
+                st_coll_map[collname].push_back(st_hit);
+            }
+        }
     }
     return StatusCode::SUCCESS;
 }

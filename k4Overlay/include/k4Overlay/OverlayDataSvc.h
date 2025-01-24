@@ -10,8 +10,19 @@
 #include "k4FWCore/DataWrapper.h"
 #include "BackgroundReaderSvc.h"
 
+#include "edm4hep/SimTrackerHitCollection.h"
+#include "edm4hep/SimCalorimeterHitCollection.h"
+#include "edm4hep/MCParticleCollection.h"
+#include "edm4hep/CaloHitContributionCollection.h"
+
 #include <set>
 #include <utility>
+#include <unordered_map>
+
+using MCCollMap = std::unordered_map<std::string, edm4hep::MCParticleCollection>;
+using CCCollMap = std::unordered_map<std::string, edm4hep::CaloHitContributionCollection>;
+using SCCollMap = std::unordered_map<std::string, edm4hep::SimCalorimeterHitCollection>;
+using STCollMap = std::unordered_map<std::string, edm4hep::SimTrackerHitCollection>;
 
 // key is <collection type priority, collection name>
 using CollNameKey = std::pair<int, std::string>;
@@ -93,6 +104,10 @@ private:
     ServiceHandle<IBackgroundReaderSvc> m_IPairSvc { this, "IPairSourceSvc", "IPairSourceSvc" };
 
     CollNameSet collname_set;
+    MCCollMap mc_coll_map;
+    CCCollMap cc_coll_map;
+    SCCollMap sc_coll_map;
+    STCollMap st_coll_map;
 };
 
 template<typename T>
